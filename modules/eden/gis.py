@@ -1886,6 +1886,7 @@ class S3LayerEntityModel(S3Model):
                               gis_layer_coordinate = T("Coordinate Layer"),
                               gis_layer_empty = T("No Base Layer"),
                               gis_layer_openstreetmap = T("OpenStreetMap Layer"),
+                              gis_layer_socialMedia = T("Social Media Layer"),
                               gis_layer_geojson = T("GeoJSON Layer"),
                               gis_layer_georss = T("GeoRSS Layer"),
                               gis_layer_google = T("Google Layer"),
@@ -2315,6 +2316,7 @@ class S3MapModel(S3Model):
              "gis_layer_wfs",
              "gis_layer_wms",
              "gis_layer_xyz",
+             "gis_layer_socialMedia"
              #"gis_style"
              ]
 
@@ -2519,6 +2521,60 @@ class S3MapModel(S3Model):
                                     actuate="hide",
                                     autocomplete="name",
                                     autodelete=False))
+
+# ---------------------- Social Media Component ---------------
+#        tablename = "gis_layer_socialMedia"
+#        table = define_table(tablename,
+#                             layer_id,
+#                             name_field()(),
+#                             Field("description", label=T("Description")),
+#                             Field("type", length=16, label=T("Type"),
+#                                   requires=IS_IN_SET(bing_layer_types)),
+#                             Field("location_id", label=T("Location_id")),
+#                             gis_opacity()(),
+#                             s3_role_required(),       # Single Role
+#                             #s3_roles_permitted(),    # Multiple Roles (needs implementing in modules/s3gis.py)
+#                             *s3_meta_fields())
+        table = db.define_table("gis_layer_socialMedia",
+                                 layer_id,
+                                 name_field()(),
+                                 Field("description", label=T("Description")),
+                                 Field("enabled", "boolean", default=True, label=T("Available in Viewer?")),
+                                 Field("visible", "boolean", default=True,
+                                        label=T("On by default? (only applicable to Overlays)")),
+                                 Field("url", label=T("Location"), requires = IS_NOT_EMPTY(),
+                                       comment=DIV( _class="tooltip",
+                                                    _title="%s|%s" % (T("Location"),
+                                                                      T("The URL to access the service.")))),
+                                 Field("version", length=32,
+                                       label=T("Version"), default="1.1.1",
+                                       requires=IS_IN_SET(["1.1.1", "1.3.0"], zero=None)),
+                                Field("base", "boolean", default=False,
+                                       label=T("Base Layer?")),
+                                Field("transparent", "boolean", default=True,
+                                       label=T("Transparent?")),
+                                gis_opacity()(),
+                                s3_role_required(),       # Single Role
+                            #roles_permitted(),    # Multiple Roles (needs implementing in modules/s3gis.py)
+         
+                                *s3_timestamp())
+        configure(tablename,
+                  onaccept=gis_layer_onaccept,
+                  super_entity="gis_layer_entity")
+
+        # Components
+        # Configs
+        add_component("gis_config",
+                      gis_layer_socialMedia=Storage(
+                                    link="gis_layer_config",
+                                    pkey="layer_id",
+                                    joinby="layer_id",
+                                    key="config_id",
+                                    actuate="hide",
+                                    autocomplete="name",
+                                    autodelete=False))
+
+
 
         # ---------------------------------------------------------------------
         # GeoJSON

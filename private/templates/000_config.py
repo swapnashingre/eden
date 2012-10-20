@@ -13,8 +13,6 @@
         private/templates/000_config.py
 """
 
-# Remove this line when you have edited this file sufficiently to proceed to the web interface
-FINISHED_EDITING_CONFIG_FILE = False
 
 # Select the Template
 # - which Modules are enabled

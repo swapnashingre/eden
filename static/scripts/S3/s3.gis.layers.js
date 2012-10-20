@@ -16,6 +16,11 @@ function addLayers() {
             addOSMLayer(S3.gis.layers_osm[i - 1]);
         }
     }
+    if (S3.gis.layer_socialMedia) {
+        for (i = S3.gis.layer_socialMedia.length; i > 0; i--) {
+            addSocialMediaLayer(S3.gis.layer_socialMedia[i - 1]);
+        }
+    }
     // Google
     try {
         // Only load Google layers if GoogleAPI downloaded ok
@@ -1313,6 +1318,13 @@ function osm_getTileURL(bounds) {
     }
 }
 
+function addSocialMediaLayers() {
+    var layer = S3.gis.gis_layer_socialMedia; 
+	map.addLayer(layer);
+	// Ensure Highlight & Popup Controls act on this layer
+	S3.gis.layers_all.push(layer);
+
+}
 // OpenWeatherMap
 function addOWMLayers() {
     var owm = S3.gis.OWM;
