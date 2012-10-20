@@ -204,18 +204,6 @@ def s3_barchart(r, **attr):
         raise HTTP(501, body=BADFORMAT)
 
 # -----------------------------------------------------------------------------
-def s3_copy(r, **attr):
-    """
-        Copy a record
-
-        used as REST method handler for S3Resources
-
-        @todo: move into S3CRUDHandler
-    """
-
-    redirect(URL(args="create", vars={"from_record":r.id}))
-
-# -----------------------------------------------------------------------------
 def s3_rest_controller(prefix=None, resourcename=None, **attr):
     """
         Helper function to apply the S3Resource REST interface
@@ -270,19 +258,23 @@ def s3_rest_controller(prefix=None, resourcename=None, **attr):
     r = s3_request(prefix, resourcename)
 
     # Set method handlers
-    r.set_handler("barchart", s3_barchart)
-    r.set_handler("compose", s3base.S3Compose())
-    r.set_handler("copy", s3_copy)
-    r.set_handler("report", s3base.S3Report())
-    r.set_handler("import", s3base.S3Importer())
-    r.set_handler("map", s3base.S3Map())
+    method = r.method
+    set_handler = r.set_handler
+    set_handler("barchart", s3_barchart)
+    set_handler("compose", s3base.S3Compose())
+    set_handler("copy", lambda r, **attr: redirect(URL(args="create",
+                                                       vars={"from_record":r.id})))
+    set_handler("import", s3base.S3Importer())
+    set_handler("map", lambda r, **attr: s3base.S3Map()(r, **attr))
+    set_handler("report", s3base.S3Report())
 
-    # Don't load S3PDF unless needed (very slow import with reportlab)
-    if r.method == "import" and r.representation == "pdf":
+    if method == "import" and \
+       r.representation == "pdf":
+        # Don't load S3PDF unless needed (very slow import with Reportlab)
         from s3.s3pdf import S3PDF
-        r.set_handler("import", S3PDF(),
-                      http = ["GET", "POST"],
-                      representation="pdf")
+        set_handler("import", S3PDF(),
+                    http = ["GET", "POST"],
+                    representation="pdf")
 
     # Plugin OrgRoleManager where appropriate
     if r.record and auth.user is not None and \
@@ -299,7 +291,7 @@ def s3_rest_controller(prefix=None, resourcename=None, **attr):
     # Execute the request
     output = r(**attr)
 
-    if isinstance(output, dict) and (not r.method or r.method in ("report", "search")):
+    if isinstance(output, dict) and (not method or method in ("report", "search")):
         if s3.actions is None:
 
             # Add default action buttons
@@ -350,7 +342,7 @@ def s3_rest_controller(prefix=None, resourcename=None, **attr):
                 add_btn = A(label, _href=url, _class="action-btn")
                 output.update(add_btn=add_btn)
 
-    elif r.method not in ("import", "review", "approve", "reject"):
+    elif method not in ("import", "review", "approve", "reject"):
         s3.actions = None
 
     return output

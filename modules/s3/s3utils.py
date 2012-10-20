@@ -79,6 +79,7 @@ def s3_debug(message, value=None):
     try:
         print >> sys.stderr, output
     except:
+        # Unicode string
         print >> sys.stderr, "Debug crashed"
 
 # =============================================================================
@@ -611,6 +612,52 @@ def s3_auth_group_represent(opt):
     if not roles:
         return current.messages.NONE
     return ", ".join(roles)
+
+# =============================================================================
+def s3_represent_name(table):
+    """
+        Returns a represent function for the common case where we return
+        the name of the record.
+    """
+
+    def represent(id, row=None):
+        if row:
+            return row.name
+        elif not id:
+            return current.messages.NONE
+
+        r = current.db(table._id == id).select(table.name,
+                                               limitby=(0, 1)
+                                               ).first()
+        try:
+            return r.name
+        except:
+            return current.messages.UNKNOWN_OPT
+
+    return represent
+
+# =============================================================================
+def s3_represent_name_translate(table):
+    """
+        Returns a represent function for the common case where we return
+        a translated version of the name of the record.
+    """
+
+    def represent(id, row=None):
+        if row:
+            return current.T(row.name)
+        elif not id:
+            return current.messages.NONE
+
+        r = current.db(table._id == id).select(table.name,
+                                               limitby=(0, 1)
+                                               ).first()
+        try:
+            return current.T(r.name)
+        except:
+            return current.messages.UNKNOWN_OPT
+
+    return represent
 
 # =============================================================================
 def s3_include_debug_css():
@@ -2595,12 +2642,15 @@ class S3DataTable(object):
 
         self.data = data
         self.rfields = rfields
-        self.lfields = []
-        self.heading = {}
+        lfields = []
+        append = lfields.append
+        heading = {}
         for field in rfields:
             selector = "%s.%s" % (field.tname, field.fname)
-            self.lfields.append(selector)
-            self.heading[selector] = (field.label)
+            append(selector)
+            heading[selector] = (field.label)
+        self.lfields = lfields
+        self.heading = heading
         max = len(data)
         if start < 0:
             start == 0
@@ -3021,12 +3071,12 @@ class S3DataTable(object):
         config.groupTotals = attr.get("dt_group_totals", [])
         config.groupTitles = attr.get("dt_group_titles", [])
         config.groupSpacing = attr.get("dt_group_space", "false")
-        if bulkActions:
-            for order in orderby:
+        for order in orderby:
+            if bulkActions:
                 if config.bulkCol <= order[0]:
                     order[0] += 1
-                if action_col >= order[0]:
-                    order[0] -= 1
+            if action_col >= order[0]:
+                order[0] -= 1
         config.aaSort = orderby
         config.textMaxLength = attr.get("dt_text_maximum_len", 80)
         config.textShrinkLength = attr.get("dt_text_condense_len", 75)

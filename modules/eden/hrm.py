@@ -83,6 +83,7 @@ class S3HRModel(S3Model):
         UNKNOWN_OPT = messages.UNKNOWN_OPT
         ORGANISATION = messages.ORGANISATION
 
+        add_component = self.add_component
         crud_strings = current.response.s3.crud_strings
         super_link = self.super_link
 
@@ -139,7 +140,7 @@ class S3HRModel(S3Model):
                                              default = auth.user.site_id if auth.is_logged_in() else None,
                                              readable = True,
                                              writable = True,
-                                             empty = False,
+                                             #empty = False,
                                              represent = self.org_site_represent,
                                              ),
                                   self.pr_person_id(
@@ -310,11 +311,20 @@ class S3HRModel(S3Model):
 
         # Components
         # Availability
-        #self.add_component("hrm_availability",
-        #                   hrm_human_resource="human_resource_id")
+        #add_component("hrm_availability",
+        #              hrm_human_resource="human_resource_id")
         # Hours
-        #self.add_component("hrm_hours",
-        #                   hrm_human_resource="human_resource_id")
+        #add_component("hrm_hours",
+        #              hrm_human_resource="human_resource_id")
+
+        # Volunteer Cluster
+        add_component("vol_volunteer_cluster",
+                      hrm_human_resource=dict(joinby="human_resource_id",
+                                              multiple=False))
+        # Volunteer Group
+        add_component("vol_volunteer_group",
+                      hrm_human_resource=dict(joinby="human_resource_id",
+                                              multiple=False))
 
         hrm_autocomplete_search = S3HRSearch()
         human_resource_search = S3Search(
@@ -369,7 +379,7 @@ class S3HRModel(S3Model):
                         name="human_resource_search_map",
                         label=T("Map"),
                       ),
-                      # Don't change the order of this without updating controllers/hrm/volunteer()
+                      # Don't change the order of this without updating controllers/vol/volunteer()
                       S3SearchOptionsWidget(
                         name="human_resource_search_site",
                         label=T("Facility"),
@@ -397,8 +407,7 @@ class S3HRModel(S3Model):
             )
         )
 
-        report_fields = [
-                         "organisation_id",
+        report_fields = ["organisation_id",
                          "person_id",
                          "site_id",
                          (T("Training"), "course"),
@@ -415,7 +424,23 @@ class S3HRModel(S3Model):
             # Being added as a component to Org, Site or Project
             hrm_url = None
 
+        # Custom Form
+        crud_form = s3forms.S3SQLCustomForm("organisation_id",
+                                            "site_id",
+                                            "person_id",
+                                            "job_title_id",
+                                            "job_role_id",
+                                            "department_id",
+                                            "volunteer_cluster.vol_cluster_type_id",
+                                            "volunteer_cluster.vol_cluster_id",
+                                            "volunteer_cluster.vol_cluster_position_id",
+                                            "start_date",
+                                            "end_date",
+                                            "status",
+                                            )
+
         self.configure(tablename,
+                       crud_form = crud_form,
                        super_entity = "sit_trackable",
                        mark_required = ["organisation_id"],
                        deletable = current.deployment_settings.get_hrm_deletable(),
@@ -3345,6 +3370,7 @@ def hrm_human_resource_onaccept(form):
     data = Storage()
 
     site_id = record.site_id
+    organisation_id = record.organisation_id
 
     # Affiliation, record ownership and component ownership
     s3db.pr_update_affiliations(htable, record)
@@ -3353,9 +3379,11 @@ def hrm_human_resource_onaccept(form):
     ptable = s3db.pr_person
     person_id = record.person_id
     person = Storage(id = person_id)
-    if current.deployment_settings.get_auth_person_realm_human_resource_site():
+    if current.deployment_settings.get_auth_person_realm_human_resource_site_then_org():
         # Set pr_person.realm_entity to the human_resource's site pe_id
-        entity = s3db.pr_get_pe_id("org_site", site_id)
+        entity = s3db.pr_get_pe_id("org_site", site_id) or \
+                 s3db.pr_get_pe_id("org_organisation", organisation_id) 
+            
         if entity:
             auth.set_realm_entity(ptable, person,
                                   entity = entity,
@@ -4330,17 +4358,23 @@ def hrm_rheader(r, tabs=[],
                                 programme_hours_month += hours
 
                 # Already formatted as HTML
-                active = TD(record.active)
-                tooltip = SPAN(_class="tooltip",
-                               _title="%s|%s" % \
-                    (T("Active"),
-                     T("A volunteer is defined as active if they've participated in an average of 8 or more hours of Programme work or Trainings per month in the last year")),
-                               _style="display:inline-block"
-                               )
+                enable_active_field = settings.set_org_dependent_field("vol_volunteer", "active", 
+                                                                       enable_field = False)
+                if enable_active_field:
+                    active = TD(record.active)
+                    tooltip = SPAN(_class="tooltip",
+                                   _title="%s|%s" % \
+                        (T("Active"),
+                         T("A volunteer is defined as active if they've participated in an average of 8 or more hours of Programme work or Trainings per month in the last year")),
+                                   _style="display:inline-block"
+                                   )
+                    active_cells = [TH("%s:" % T("Active?"), tooltip),
+                                    active]
+                else:
+                    active_cells = []
                 row1 = TR(TH("%s:" % T("Programme")),
                           record.programme,
-                          TH("%s:" % T("Active?"), tooltip),
-                          active
+                          *active_cells
                           )
                 row2 = TR(TH("%s:" % T("Programme Hours (Month)")),
                           str(programme_hours_month),

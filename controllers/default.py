@@ -17,8 +17,14 @@ def call():
 def download():
     """ Download a file """
 
+    try:
+        filename = request.args[0]
+    except:
+        session.error("Need to specify the file to download!")
+        redirect(URL(f="index"))
+
     # Load the Model
-    tablename = request.args[0].split(".", 1)[0]
+    tablename = filename.split(".", 1)[0]
     table = s3db[tablename]
 
     return response.download(request, db)
@@ -595,9 +601,6 @@ def person():
                     table.other_details.readable = True
             else:
                 table = r.table
-                # No point showing the 'Occupation' field - that's the Job Title in the Staff Record
-                table.occupation.readable = False
-                table.occupation.writable = False
                 table.pe_label.readable = False
                 table.pe_label.writable = False
                 table.missing.readable = False
@@ -749,7 +752,7 @@ def about():
                                    database=settings.database.get("database", "sahana"),
                                    user=settings.database.get("username", "sahana"),
                                    password=settings.database.get("password", "password")
-                                   ) 
+                                   )
             cur = con.cursor()
             cur.execute("SELECT version()")
             pgsql_version = cur.fetchone()

@@ -283,8 +283,10 @@ class GIS(object):
 
         layer = KMLLayer()
 
-        query = (layer.table.id == record_id)
-        record = current.db(query).select(limitby=(0, 1)).first()
+        table = layer.table
+        record = current.db(table.id == record_id).select(table.url,
+                                                          limitby=(0, 1)
+                                                          ).first()
         url = record.url
 
         cachepath = layer.cachepath
@@ -1903,7 +1905,6 @@ class GIS(object):
         db = current.db
         s3db = current.s3db
         request = current.request
-        gis = current.gis
 
         format = current.auth.permission.format
 
@@ -2027,6 +2028,8 @@ class GIS(object):
         if trackable:
             # Use S3Track
             ids = resource._ids
+            # Ensure IDs in ascending order
+            ids.sort()
             try:
                 tracker = S3Trackable(table, record_ids=ids)
             except SyntaxError:
@@ -2074,7 +2077,7 @@ class GIS(object):
                     if format == "geojson":
                         for row in rows:
                             # Simplify the polygon to reduce download size
-                            geojson = gis.simplify(row["gis_location"].wkt, output="geojson")
+                            geojson = GIS.simplify(row["gis_location"].wkt, output="geojson")
                             if geojson:
                                 geojsons[row[tablename].id] = geojson
                     else:
@@ -2082,7 +2085,7 @@ class GIS(object):
                             # Simplify the polygon to reduce download size
                             # & also to work around the recursion limit in libxslt
                             # http://blog.gmane.org/gmane.comp.python.lxml.devel/day=20120309
-                            wkt = gis.simplify(row["gis_location"].wkt)
+                            wkt = GIS.simplify(row["gis_location"].wkt)
                             if wkt:
                                 wkts[row[tablename].id] = wkt
 
@@ -2258,10 +2261,9 @@ class GIS(object):
         else:
             rows = db(query).select(table.id,
                                     gtable.wkt)
-            gis = current.gis
             for row in rows:
                 # Simplify the polygon to reduce download size
-                geojson = gis.simplify(row["gis_location"].wkt, output="geojson")
+                geojson = GIS.simplify(row["gis_location"].wkt, output="geojson")
                 if geojson:
                     geojsons[row[tablename].id] = geojson
 
@@ -2432,7 +2434,18 @@ class GIS(object):
                     geojson = row.geojson
                 elif simplify:
                     id = row.id
-                    geojson = _simplify(row.wkt, tolerance=simplify, output="geojson")
+                    wkt = row.wkt
+                    if wkt:
+                        geojson = _simplify(wkt, tolerance=simplify,
+                                            output="geojson")
+                    else:
+                        name = db(table.id == id).select(table.name,
+                                                         limitby=(0, 1)).first().name
+                        try:
+                            print >> sys.stderr, "No WKT, level 0: %s" % name
+                        except:
+                            print >> sys.stderr, "No WKT, level 0: %s" % id
+                        continue
                 else:
                     id = row.id
                     shape = wkt_loads(row.wkt)
@@ -2484,7 +2497,18 @@ class GIS(object):
                         geojson = row.geojson
                     elif simplify:
                         id = row.id
-                        geojson = _simplify(row.wkt, tolerance=simplify, output="geojson")
+                        wkt = row.wkt
+                        if wkt:
+                            geojson = _simplify(wkt, tolerance=simplify,
+                                                output="geojson")
+                        else:
+                            name = db(table.id == id).select(table.name,
+                                                             limitby=(0, 1)).first().name
+                            try:
+                                print >> sys.stderr, "No WKT, level 1: %s" % name
+                            except:
+                                print >> sys.stderr, "No WKT, level 1: %s" % id
+                            continue
                     else:
                         id = row.id
                         shape = wkt_loads(row.wkt)
@@ -2533,7 +2557,18 @@ class GIS(object):
                             geojson = row.geojson
                         elif simplify:
                             id = row.id
-                            geojson = _simplify(row.wkt, tolerance=simplify, output="geojson")
+                            wkt = row.wkt
+                            if wkt:
+                                geojson = _simplify(wkt, tolerance=simplify,
+                                                    output="geojson")
+                            else:
+                                name = db(table.id == id).select(table.name,
+                                                                 limitby=(0, 1)).first().name
+                                try:
+                                    print >> sys.stderr, "No WKT, level 2: %s" % name
+                                except:
+                                    print >> sys.stderr, "No WKT, level 2: %s" % id
+                                continue
                         else:
                             id = row.id
                             shape = wkt_loads(row.wkt)
@@ -2585,7 +2620,18 @@ class GIS(object):
                                 geojson = row.geojson
                             elif simplify:
                                 id = row.id
-                                geojson = _simplify(row.wkt, tolerance=simplify, output="geojson")
+                                wkt = row.wkt
+                                if wkt:
+                                    geojson = _simplify(wkt, tolerance=simplify,
+                                                        output="geojson")
+                                else:
+                                    name = db(table.id == id).select(table.name,
+                                                                     limitby=(0, 1)).first().name
+                                    try:
+                                        print >> sys.stderr, "No WKT, level 3: %s" % name
+                                    except:
+                                        print >> sys.stderr, "No WKT, level 3: %s" % id
+                                    continue
                             else:
                                 id = row.id
                                 shape = wkt_loads(row.wkt)
@@ -2640,7 +2686,18 @@ class GIS(object):
                                     geojson = row.geojson
                                 elif simplify:
                                     id = row.id
-                                    geojson = _simplify(row.wkt, tolerance=simplify, output="geojson")
+                                    wkt = row.wkt
+                                    if wkt:
+                                        geojson = _simplify(wkt, tolerance=simplify,
+                                                            output="geojson")
+                                    else:
+                                        name = db(table.id == id).select(table.name,
+                                                                         limitby=(0, 1)).first().name
+                                        try:
+                                            print >> sys.stderr, "No WKT, level 4: %s" % name
+                                        except:
+                                            print >> sys.stderr, "No WKT, level 4: %s" % id
+                                        continue
                                 else:
                                     id = row.id
                                     shape = wkt_loads(row.wkt)
@@ -7249,11 +7306,10 @@ class S3ExportPOI(S3Method):
 
                 - "resources"   list of tablenames to export records from
 
-                - "msince"      datetime in ISO format, to override the
-                                feed's last update datetime, "off" to turn off
-                                msince completely
+                - "msince"      datetime in ISO format, "auto" to use the
+                                feed's last update
 
-                - "update_feed" false to skip the update of the feed's last
+                - "update_feed" 0 to skip the update of the feed's last
                                 update datetime, useful for trial exports
 
             Supported formats:
@@ -7293,18 +7349,16 @@ class S3ExportPOI(S3Method):
         # Parse the ?update_feed= parameter
         update_feed = True
         if "update_feed" in r.get_vars:
-            update_feed = r.get_vars["update_feed"]
-            if update_feed.lower() == "false":
+            _update_feed = r.get_vars["update_feed"]
+            if _update_feed == "0":
                 update_feed = False
-            else:
-                update_feed = True
 
         # Parse the ?msince= parameter
-        msince = "auto"
+        msince = None
         if "msince" in r.get_vars:
             msince = r.get_vars["msince"]
-            if msince.lower() == "off":
-                msince = None
+            if msince.lower() == "auto":
+                msince = "auto"
             else:
                 try:
                     (y, m, d, hh, mm, ss, t0, t1, t2) = \
@@ -7349,7 +7403,7 @@ class S3ExportPOI(S3Method):
         return output
 
     # -------------------------------------------------------------------------
-    def export_combined_tree(self, tables, msince="auto", update_feed=False):
+    def export_combined_tree(self, tables, msince=None, update_feed=True):
         """
             Export a combined tree of all records in tables, which
             are in Lx, and have been updated since msince.
@@ -7360,7 +7414,11 @@ class S3ExportPOI(S3Method):
             @param update_feed: update the last_update datetime in the feed
         """
 
-        manager = current.manager
+        db = current.db
+        s3db = current.s3db
+        ftable = s3db.gis_poi_feed
+
+        lx = self.lx
 
         elements = []
         results = 0
@@ -7368,7 +7426,7 @@ class S3ExportPOI(S3Method):
 
             # Define the resource
             try:
-                resource = current.s3db.resource(tablename, components=[])
+                resource = s3db.resource(tablename, components=[])
             except AttributeError:
                 # Table not defined (module deactivated?)
                 continue
@@ -7379,13 +7437,12 @@ class S3ExportPOI(S3Method):
                 continue
 
             # Add Lx filter
-            self._add_lx_filter(resource)
+            self._add_lx_filter(resource, lx)
 
             # Get the feed data
-            ftable = current.s3db.gis_poi_feed
             query = (ftable.tablename == tablename) & \
-                    (ftable.location_id == self.lx)
-            feed = current.db(query).select(limitby=(0, 1)).first()
+                    (ftable.location_id == lx)
+            feed = db(query).select(limitby=(0, 1)).first()
             if msince == "auto":
                 if feed is None:
                     _msince = None
@@ -7402,7 +7459,7 @@ class S3ExportPOI(S3Method):
             if update_feed:
                 muntil = resource.muntil
                 if feed is None:
-                    ftable.insert(location_id = self.lx,
+                    ftable.insert(location_id = lx,
                                   tablename = tablename,
                                   last_update = muntil)
                 else:
@@ -7415,7 +7472,8 @@ class S3ExportPOI(S3Method):
         return tree
 
     # -------------------------------------------------------------------------
-    def _add_lx_filter(self, resource):
+    @staticmethod
+    def _add_lx_filter(resource, lx):
         """
             Add a Lx filter for the current location to this
             resource.
@@ -7424,10 +7482,9 @@ class S3ExportPOI(S3Method):
         """
 
         from s3resource import S3FieldSelector as FS
-        query = (FS("location_id$path").contains("/%s/" % self.lx)) | \
-                (FS("location_id$path").like("%s/%%" % self.lx))
+        query = (FS("location_id$path").contains("/%s/" % lx)) | \
+                (FS("location_id$path").like("%s/%%" % lx))
         resource.add_filter(query)
-        return
 
 # -----------------------------------------------------------------------------
 class S3ImportPOI(S3Method):

@@ -117,17 +117,21 @@ def volunteer():
     human_resource_search = get_config(tablename,
                                        "search_method")
     # Remove Facility
-    human_resource_search.advanced.pop(5)
+    human_resource_search.advanced.pop(8)
     if settings.get_hrm_vol_experience() == "programme":
+        enable_active_field = settings.set_org_dependent_field("vol_volunteer", "active",
+                                                               enable_field = False)
         # Add Programme Virtual Fields
         table.virtualfields.append(s3db.hrm_programme_virtual_fields())
         # Add VF to List Fields
-        list_fields.insert(4, (T("Active?"), "active"))
+        if enable_active_field:
+            list_fields.insert(4, (T("Active?"), "active"))
         list_fields.insert(6, (T("Programme"), "programme"))
         # Add VF to Report Options
         report_fields = report_options.rows
         report_fields.append((T("Programme"), "programme"))
-        report_fields.append((T("Active?"), "active"))
+        if enable_active_field:
+            report_fields.append((T("Active?"), "active"))
         report_options.rows = report_fields
         report_options.cols = report_fields
         report_options.facts = report_fields
@@ -136,18 +140,19 @@ def volunteer():
         human_resource_search.advanced.pop(1)
         table.status.readable = False
         table.status.writable = False
-        widget = s3base.S3SearchOptionsWidget(
-                            name="human_resource_search_active",
-                            label=T("Active?"),
-                            field="active",
-                            cols = 2,
-                            options = {
-                                    T("Yes"):  T("Yes"),
-                                    T("No"): T("No")
-                                }
-                          ),
-        search_widget = ("human_resource_search_active", widget[0])
-        human_resource_search.advanced.insert(1, search_widget)
+        if enable_active_field:
+            widget = s3base.S3SearchOptionsWidget(
+                                name="human_resource_search_active",
+                                label=T("Active?"),
+                                field="active",
+                                cols = 2,
+                                options = {
+                                        T("Yes"): T("Yes"),
+                                        T("No"): T("No")
+                                    }
+                              ),
+            search_widget = ("human_resource_search_active", widget[0])
+            human_resource_search.advanced.insert(1, search_widget)
 
         def hrm_programme_opts():
             """
@@ -200,6 +205,8 @@ def volunteer():
                 _type.default = 2
                 _location.writable = True
                 _location.readable = True
+                table.site_id.writable = False
+                table.site_id.readable = False
                 table.code.writable = False
                 table.code.readable = False
                 table.department_id.writable = False
@@ -211,17 +218,28 @@ def volunteer():
                 table.status.writable = False
                 table.status.readable = False
 
+                person_details_table = s3db.pr_person_details
+                person_details_table.occupation.label = T("Normal Job")
+
+                # Organisation Dependent Fields
+                set_org_dependent_field = settings.set_org_dependent_field
+                set_org_dependent_field("pr_person_details", "father_name")
+                set_org_dependent_field("pr_person_details", "mother_name")
+                set_org_dependent_field("pr_person_details", "affiliations")
+                set_org_dependent_field("pr_person_details", "company")
+                set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_type_id")
+                set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_id")
+                set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_position_id")
+
             elif r.method == "delete":
                 # Don't redirect
                 pass
             elif r.id:
                 # Redirect to person controller
-                vars = {
-                    "human_resource.id": r.id,
-                    "group": "volunteer"
-                }
                 redirect(URL(f="person",
-                             vars=vars))
+                             vars={"human_resource.id": r.id,
+                                   "group": "volunteer"
+                                   }))
         return True
     s3.prep = prep
 
@@ -426,7 +444,28 @@ def person():
         if r.representation == "s3json":
             s3mgr.show_ids = True
         elif r.interactive and r.method != "import":
-            if r.component:
+            if not r.component:
+                table = r.table
+                # Assume volunteers only between 12-81
+                table.date_of_birth.widget = S3DateWidget(past=972, future=-144)
+                table.pe_label.readable = False
+                table.pe_label.writable = False
+                table.missing.readable = False
+                table.missing.writable = False
+                table.age_group.readable = False
+                table.age_group.writable = False
+
+                person_details_table = s3db.pr_person_details
+                person_details_table.occupation.label = T("Normal Job")
+
+                # Organisation Dependent Fields
+                set_org_dependent_field = settings.set_org_dependent_field
+                set_org_dependent_field("pr_person_details", "father_name")
+                set_org_dependent_field("pr_person_details", "mother_name")
+                set_org_dependent_field("pr_person_details", "affiliations")
+                set_org_dependent_field("pr_person_details", "company")
+
+            else:
                 if r.component_name == "human_resource":
                     table = r.component.table
                     table.code.writable = False
@@ -447,6 +486,13 @@ def person():
                         field.default = org
                         field.readable = False
                         field.writable = False
+
+                    # Organisation Dependent Fields
+                    set_org_dependent_field = settings.set_org_dependent_field
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_type_id")
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_id")
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_position_id")
+
                 elif r.component_name == "hours":
                     filter = (r.component.table.hours != None)
                     r.resource.add_component_filter("hours", filter)
@@ -473,20 +519,6 @@ def person():
                               insertable = False,
                               editable = False,
                               deletable = False)
-            elif r.method == "contacts":
-                #s3.js_global.append('''controller="vol"''')
-                pass
-            else:
-                table = r.table
-                # Assume volunteers only between 12-81
-                table.date_of_birth.widget = S3DateWidget(past=972, future=-144)
-                table.occupation.label = T("Normal Job")
-                table.pe_label.readable = False
-                table.pe_label.writable = False
-                table.missing.readable = False
-                table.missing.writable = False
-                table.age_group.readable = False
-                table.age_group.writable = False
 
             resource = r.resource
             if mode is not None:
@@ -719,6 +751,8 @@ def department():
         return True
     s3.prep = prep
 
+    s3.filter = auth.filter_by_root_org(s3db.hrm_department)
+
     output = s3_rest_controller("hrm", resourcename)
     return output
 
@@ -732,6 +766,8 @@ def job_role():
         return True
     s3.prep = prep
 
+    s3.filter = auth.filter_by_root_org(s3db.hrm_job_role)
+
     output = s3_rest_controller("hrm", resourcename)
     return output
 
@@ -744,6 +780,8 @@ def job_title():
             r.error(403, message=auth.permission.INSUFFICIENT_PRIVILEGES)
         return True
     s3.prep = prep
+
+    s3.filter = auth.filter_by_root_org(s3db.hrm_job_title)
 
     output = s3_rest_controller("hrm", resourcename)
     return output
@@ -806,6 +844,8 @@ def course():
     if mode is not None:
         session.error = T("Access denied")
         redirect(URL(f="index"))
+
+        s3.filter = auth.filter_by_root_org(s3db.hrm_course)
 
     output = s3_rest_controller("hrm", resourcename,
                                 rheader=s3db.hrm_rheader)
@@ -902,12 +942,14 @@ def staff_org_site_json():
 
 # =============================================================================
 def programme():
-    """ Volunteer Programmes Controller """
+    """ Volunteer Programmes controller """
 
     mode = session.s3.hrm.mode
     if mode is not None:
         session.error = T("Access denied")
         redirect(URL(f="index"))
+
+    s3.filter = auth.filter_by_root_org(s3db.hrm_programme)
 
     output = s3_rest_controller("hrm", resourcename,
                                 rheader=s3db.hrm_rheader)
@@ -916,7 +958,7 @@ def programme():
 # -----------------------------------------------------------------------------
 def programme_hours():
     """
-        Volunteer Programme Hours Controller
+        Volunteer Programme Hours controller
         - just meant for Imports
     """
 
@@ -927,12 +969,33 @@ def programme_hours():
 
     output = s3_rest_controller("hrm", resourcename)
     return output
+# =============================================================================
+def cluster_type():
+    """ Volunteer Clusters controller """
+
+    return s3_rest_controller()
+
+# =============================================================================
+def volunteer_cluster():
+    """ ONLY FOR RETURNING options to the S3AddResourceLink PopUp """
+
+    return s3_rest_controller()
+
+# =============================================================================
+def cluster():
+    """ Volunteer Clusters controller """
+
+    return s3_rest_controller()
+
+# -----------------------------------------------------------------------------
+def cluster_position():
+    """ Volunteer Group Positions controller """
+
+    return s3_rest_controller()
 
 # =============================================================================
 def task():
-    """
-        Tasks controller
-    """
+    """ Tasks controller """
 
     return s3db.project_task_controller()
 

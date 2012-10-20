@@ -66,7 +66,6 @@ class S3Msg(object):
                  modem=None):
 
         T = current.T
-        self.mail = current.mail
         self.modem = modem
 
         # http://docs.oasis-open.org/emergency/edxl-have/cs01/xPIL-types.xsd
@@ -702,6 +701,7 @@ class S3Msg(object):
                    cc=None,
                    bcc=None,
                    reply_to=None,
+                   sender="%(sender)s",
                    encoding="utf-8"):
         """
             Function to send Email
@@ -714,8 +714,13 @@ class S3Msg(object):
         if not to:
             return False
 
-        limit = current.deployment_settings.get_mail_limit()
+        settings = current.deployment_settings
+        default_sender = settings.get_mail_sender()
+        if not default_sender:
+            s3_debug("Email sending disabled until the Sender address has been set in models/000_config.py")
+            return False
 
+        limit = settings.get_mail_limit()
         if limit:
             db = current.db
             s3db = current.db
@@ -730,15 +735,17 @@ class S3Msg(object):
             # Log the sending
             table.insert()
 
-        result = self.mail.send(to,
-                                subject,
-                                message,
-                                attachments,
-                                cc,
-                                bcc,
-                                reply_to,
-                                encoding
-                                )
+        result = current.mail.send(to,
+                                   subject=subject,
+                                   message=message,
+                                   attachments=attachments,
+                                   cc=cc,
+                                   bcc=bcc,
+                                   reply_to=reply_to,
+                                   # @ToDo: Once more people have upgrade their web2py
+                                   #sender=sender,
+                                   encoding=encoding
+                                   )
 
         return result
 
@@ -916,12 +923,10 @@ class S3Msg(object):
             http://www.obviously.com/tech_tips/SMS_Text_Email_Gateway.html
         """
 
-        db = current.db
-        s3db = current.s3db
-        table = s3db.msg_smtp_to_sms_settings
-
+        table = current.s3db.msg_smtp_to_sms_settings
         query = (table.enabled == True)
-        settings = db(query).select(limitby=(0, 1)).first()
+        settings = current.db(query).select(limitby=(0, 1)
+                                            ).first()
         if not settings:
             return False
 
@@ -931,10 +936,10 @@ class S3Msg(object):
                         settings.address)
 
         try:
-            self.send_email(to=to,
-                            subject="",
-                            message= text)
-            return True
+            result = self.send_email(to=to,
+                                     subject="",
+                                     message= text)
+            return result
         except:
             return False
 
@@ -1538,7 +1543,7 @@ class S3Compose(S3CRUD):
             current.session.error = T("Cannot send messages if Messaging module disabled")
             redirect(URL(f="index"))
             
-        if not current.auth.permission.has_permission("update", c="msg"):
+        if not auth.permission.has_permission("update", c="msg"):
             current.session.error = T("You do not have permission to send messages")
             redirect(URL(f="index"))
 
@@ -1597,25 +1602,21 @@ class S3Compose(S3CRUD):
         """
 
         T = current.T
-        db = current.db
-        s3db = current.s3db
         auth = current.auth
         msg = current.msg
         session = current.session
 
         vars = current.request.post_vars
 
-        url = self.url
-
         recipients = self.recipients
         if not recipients:
             if not vars.pe_id:
                 session.error = T("Please enter the recipient(s)")
-                redirect(url)
+                redirect(self.url)
             else:
                 recipients = vars.pe_id
 
-        table = s3db.pr_person
+        table = current.s3db.pr_person
         if auth.user:
             sender_pe_id = auth.user.pe_id
         else:
@@ -1626,10 +1627,10 @@ class S3Compose(S3CRUD):
                              sender_pe_id,
                              vars.pr_message_method):
             session.confirmation = T("Check outbox for the message status")
-            redirect(url)
+            redirect(self.url)
         else:
             session.error = T("Error in message")
-            redirect(url)
+            redirect(self.url)
 
     # -------------------------------------------------------------------------
     def _compose_form(self):
@@ -1642,9 +1643,7 @@ class S3Compose(S3CRUD):
         db = current.db
         s3db = current.s3db
         crud = current.crud
-        session = current.session
-        response = current.response
-        s3 = response.s3
+        s3 = current.response.s3
 
         ltable = s3db.msg_log
         otable = s3db.msg_outbox
@@ -1773,14 +1772,14 @@ class S3Compose(S3CRUD):
         # Control the Javascript in static/scripts/S3/s3.msg.js
         if not recipients:
             if recipient_type:
-                s3.js_global.append("S3.msg_search_url = '%s';" % \
+                s3.js_global.append('''S3.msg_search_url="%s"''' % \
                                     URL(c="msg", f="search",
                                         vars={"type":recipient_type}))
             else:
-                s3.js_global.append("S3.msg_search_url = '%s';" % \
+                s3.js_global.append('''S3.msg_search_url="%s"''' % \
                                     URL(c="msg", f="search"))
 
-            s3.jquery_ready.append("s3_msg_ac_pe_input();")
+            s3.jquery_ready.append('''s3_msg_ac_pe_input()''')
 
         return form
 

@@ -163,7 +163,7 @@ class S3OrganisationModel(S3Model):
                 msg_list_empty=T("No Sectors currently registered"))
 
         configure("org_sector", deduplicate=self.org_sector_duplicate)
-        
+
         sector_comment = S3AddResourceLink(c="org", f="sector",
                                            label=ADD_SECTOR,
                                            title=SECTOR,
@@ -458,7 +458,7 @@ class S3OrganisationModel(S3Model):
                                           label=ORGANISATION,
                                           comment=organisation_comment,
                                           ondelete="RESTRICT",
-                                          widget = SQLFORM.widgets.options.widget,
+                                          widget = None #SQLFORM.widgets.options.widget,
                                          )
 
         organisations_id = S3ReusableField("organisations_id",
@@ -1842,8 +1842,8 @@ class S3OfficeModel(S3Model):
                                    ),
                              self.org_organisation_id(
                                  #widget=S3OrganisationAutocompleteWidget(default_from_profile=True),
-                                 requires = self.org_organisation_requires(updateable=True),
-                                 required = True,
+                                 requires = self.org_organisation_requires(updateable=True,
+                                                                           required=True),
                                  ),
                              office_type_id(
                                             #readable = False,

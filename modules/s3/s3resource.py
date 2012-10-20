@@ -480,7 +480,9 @@ class S3Resource(object):
                limit=None,
                left=None,
                orderby=None,
-               distinct=False):
+               groupby=None,
+               distinct=False,
+               virtual=True):
         """
             Select records from this resource, applying the current filters.
 
@@ -489,9 +491,9 @@ class S3Resource(object):
             @param limit: maximum number of records
             @param left: left joins
             @param orderby: SQL orderby
+            @param groupby: SQL groupby (make sure all groupby-fields are selected!)
             @param distinct: SQL distinct
-
-            @todo: authorization
+            @param virtual: False to turn off computation of virtual fields
         """
 
         db = current.db
@@ -580,6 +582,8 @@ class S3Resource(object):
         load = current.s3db.table
         qfields = []
         qtables = []
+        gfields = [str(g) for g in groupby] \
+                  if isinstance(groupby, (list, tuple)) else str(groupby)
         for f in lfields:
             field = f.field
             tname = f.tname
@@ -593,10 +597,12 @@ class S3Resource(object):
                 # belongs to is included in the SELECT
                 qtables.append(tname)
                 pkey = qtable._id
-                qfields.append(pkey)
+                if not groupby:
+                    qfields.append(pkey)
                 if str(field) == str(pkey):
                     continue
-            qfields.append(field)
+            if not groupby or str(field) in gfields:
+                qfields.append(field)
 
         # Add orderby fields which are not in qfields
         # @todo: this could need some cleanup/optimization
@@ -632,8 +638,19 @@ class S3Resource(object):
                     qfields.insert(0, self._id)
                 attributes["orderby"] = self._id
 
+        if groupby:
+            attributes["groupby"] = groupby
+
+        # Temporarily deactivate virtual fields
+        osetattr = object.__setattr__
+        if not virtual:
+            vf = table.virtualfields
+            osetattr(table, "virtualfields", [])
         # Retrieve the rows
         rows = db(query).select(*qfields, **attributes)
+        # Restore virtual fields
+        if not virtual:
+            osetattr(table, "virtualfields", vf)
 
         # Apply virtual fields filter
         if rows and vfltr is not None:
@@ -1181,7 +1198,8 @@ class S3Resource(object):
 
         # Resolve the selectors
         rfields = self.resolve_selectors(fields,
-                                         skip_components=False)[0]
+                                         skip_components=False,
+                                         extra_fields=False)[0]
 
         # Retrieve the rows
         rows = self.select(fields=selectors,
@@ -1739,13 +1757,13 @@ class S3Resource(object):
     def export_tree(self,
                     start=0,
                     limit=None,
-                    skip=[],
-                    fields=None,
                     msince=None,
+                    fields=None,
+                    skip=[],
+                    references=None,
                     dereference=True,
                     mcomponents=None,
                     rcomponents=None,
-                    references=None,
                     maxbounds=False):
         """
             Export the resource as element tree
@@ -1753,15 +1771,18 @@ class S3Resource(object):
             @param start: index of the first record to export
             @param limit: maximum number of records to export
             @param msince: minimum modification date of the records
+            @param fields: data fields to include (default: all)
             @param skip: list of fieldnames to skip
-            @param show_urls: show record URLs in the export
+            @param references: foreign keys to include (default: all)
+            @param dereference: also export referenced records
             @param mcomponents: components of the master resource to
                                 include (list of tablenames), empty list
                                 for all
             @param rcomponents: components of referenced resources to
                                 include (list of tablenames), empty list
                                 for all
-            @param dereference: also export referenced records
+            @param maxbounds: include lat/lon boundaries in the top
+                              level element (off by default)
 
         """
 
@@ -1918,6 +1939,7 @@ class S3Resource(object):
                                               export_map=export_map,
                                               components=rcomponents,
                                               skip=skip,
+                                              master=False,
                                               marker=marker,
                                               locations=locations)
 
@@ -1958,11 +1980,9 @@ class S3Resource(object):
                           components=None,
                           skip=[],
                           msince=None,
+                          master=True,
                           marker=None,
-                          locations=None,
-                          popup_label=None,
-                          popup_fields=None
-                          ):
+                          locations=None):
         """
             Add a <resource> to the element tree
 
@@ -1977,6 +1997,7 @@ class S3Resource(object):
                                resources (tablenames)
             @param skip: fields to skip
             @param msince: the minimum update datetime for exported records
+            @param master: True of this is the master resource
             @param marker: the marker for GIS encoding
             @param locations: the locations for GIS encoding
         """
@@ -2003,6 +2024,7 @@ class S3Resource(object):
                                export_map=export_map,
                                url=record_url,
                                msince=msince,
+                               master=master,
                                marker=marker,
                                locations=locations)
         if element is not None:
@@ -2060,7 +2082,8 @@ class S3Resource(object):
                                              parent=element,
                                              export_map=export_map,
                                              url=crecord_url,
-                                             msince=msince)
+                                             msince=msince,
+                                             master=False)
                     if celement is not None:
                         add = True # keep the parent record
 
@@ -2092,9 +2115,9 @@ class S3Resource(object):
                         export_map=None,
                         url=None,
                         msince=None,
+                        master=True,
                         marker=None,
-                        locations=None
-                        ):
+                        locations=None):
         """
             Exports a single record to the element tree.
 
@@ -2105,7 +2128,9 @@ class S3Resource(object):
             @param export_map: the export map of the current request
             @param url: URL of the record
             @param msince: minimum last update time
+            @param master: True if this is a record in the master resource
             @param marker: the marker for GIS encoding
+            @param locations: the locations for GIS encoding
         """
 
         s3db = current.s3db
@@ -2167,7 +2192,7 @@ class S3Resource(object):
 
         # GIS-encode the element
         xml.gis_encode(self, record, element, rmap,
-                       marker=marker, locations=locations)
+                       marker=marker, locations=locations, master=master)
 
         return (element, rmap)
 
@@ -2969,13 +2994,17 @@ class S3Resource(object):
                     if table[f].readable and f != fkey]
 
     # -------------------------------------------------------------------------
-    def resolve_selectors(self, selectors, skip_components=True):
+    def resolve_selectors(self, selectors,
+                          skip_components=True,
+                          extra_fields=True):
         """
             Resolve a list of field selectors against this resource
 
             @param selectors: the field selectors
             @param skip_components: skip fields in components (component fields
                                     are currently not supported by list_fields)
+            @param extra_fields: automatically add extra_fields of all virtual
+                                 fields in this table
 
             @returns: tuple of (fields, joins, left, distinct)
         """
@@ -3000,16 +3029,17 @@ class S3Resource(object):
             else:
                 selector = s
             append(prefix(selector))
+        slist = list(selectors)
 
         # Collect extra fields from virtual tables
-        slist = list(selectors)
-        append = slist.append
-        for vtable in table.virtualfields:
-            if hasattr(vtable, "extra_fields"):
-                for selector in vtable.extra_fields:
-                    s = prefix(selector)
-                    if s not in display_fields:
-                        append(s)
+        if extra_fields:
+            append = slist.append
+            for vtable in table.virtualfields:
+                if hasattr(vtable, "extra_fields"):
+                    for selector in vtable.extra_fields:
+                        s = prefix(selector)
+                        if s not in display_fields:
+                            append(s)
 
         joins = Storage()
         left = Storage()

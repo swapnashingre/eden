@@ -12,6 +12,8 @@ from gluon import *
 from gluon.storage import Storage
 
 # =============================================================================
+# Stats_aggregate takes too long to test on a populated database
+@unittest.skip("Comment or remove this line in modules/unit_tests/eden/stats.py to activate this test")
 @unittest.skipIf(not current.deployment_settings.has_module("vulnerability"),
                  "Vulnerability module deactivated")
 class StatsTests(unittest.TestCase):

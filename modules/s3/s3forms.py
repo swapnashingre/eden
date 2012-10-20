@@ -409,13 +409,10 @@ class S3SQLDefaultForm(S3SQLForm):
             @todo: describe arguments
         """
 
-        s3db = current.s3db
-
         manager = current.manager
         audit = manager.audit
         table = self.table
         record_id = self.record_id
-        response = current.response
 
         # Get the proper onvalidation routine
         if isinstance(onvalidation, dict):
@@ -456,6 +453,7 @@ class S3SQLDefaultForm(S3SQLForm):
             vars = form.vars
 
             # Update super entity links
+            s3db = current.s3db
             s3db.update_super(table, vars)
 
             # Update component link
@@ -465,17 +463,17 @@ class S3SQLDefaultForm(S3SQLForm):
                 resource.update_link(master, vars)
 
             if vars.id:
-                auth = current.auth
                 if record_id is None:
                     # Set record owner
+                    auth = current.auth
                     auth.s3_set_record_owner(table, vars.id)
                     auth.s3_make_session_owner(table, vars.id)
                 else:
                     # Update realm
                     update_realm = s3db.get_config(table, "update_realm")
                     if update_realm:
-                        auth.set_realm_entity(table, vars,
-                                              force_update=True)
+                        current.auth.set_realm_entity(table, vars,
+                                                      force_update=True)
                 # Store session vars
                 self.resource.lastid = str(vars.id)
                 manager.store_session(prefix, name, vars.id)
@@ -586,7 +584,6 @@ class S3SQLCustomForm(S3SQLForm):
 
         db = current.db
         s3 = current.response.s3
-        settings = s3.crud
 
         # Determine the target resource
         if resource is None:
@@ -633,7 +630,7 @@ class S3SQLCustomForm(S3SQLForm):
             # Default formstyle works best when we have no formatting
             formstyle = "table3cols"
         else:
-            formstyle = lambda a, b, c, d: settings.formstyle(a, b, c, d)
+            formstyle = lambda a, b, c, d: s3.crud.formstyle(a, b, c, d)
 
         # Retrieve the record
         record = None
@@ -649,6 +646,8 @@ class S3SQLCustomForm(S3SQLForm):
         forbidden = []
         permit = resource.permit
 
+        rcomponents = resource.components
+
         if record is not None:
 
             # Retrieve the subrows
@@ -656,7 +655,7 @@ class S3SQLCustomForm(S3SQLForm):
             for alias in subtables:
 
                 # Get the join for this subtable
-                component = resource.components[alias]
+                component = rcomponents[alias]
                 if component.multiple:
                     continue
                 join = component.get_join()
@@ -670,7 +669,7 @@ class S3SQLCustomForm(S3SQLForm):
                 # Check permission for this subrow
                 ctname = component.tablename
                 if not row:
-                    component = resource.components[alias]
+                    component = rcomponents[alias]
                     permitted = permit("create", ctname)
                     if not permitted:
                         forbidden.append(alias)
@@ -710,8 +709,8 @@ class S3SQLCustomForm(S3SQLForm):
 
             # Check create-permission for subtables
             for alias in subtables:
-                if alias in resource.components:
-                    component = resource.components[alias]
+                if alias in rcomponents:
+                    component = rcomponents[alias]
                 else:
                     continue
                 permitted = permit("create", component.tablename)
@@ -913,16 +912,12 @@ class S3SQLCustomForm(S3SQLForm):
             @param format: the request format (for audit)
         """
 
-        auth = current.auth
-
-        manager = current.manager
-        audit = manager.audit
-
-        db = current.db
-        s3db = current.s3db
-
         if not data:
             return
+
+        s3db = current.s3db
+        manager = current.manager
+        audit = manager.audit
 
         if alias is None:
             component = self.resource
@@ -933,21 +928,26 @@ class S3SQLCustomForm(S3SQLForm):
 
         get_config = s3db.get_config
 
+        record = None
         if record_id:
             accept_id = record_id
+            db = current.db
             db(table._id == record_id).update(**data)
             onaccept = get_config(tablename, "update_onaccept",
                        get_config(tablename, "onaccept", None))
+            if onaccept:
+                record = db(table._id == record_id).select(limitby=(0, 1)
+                                                           ).first()
         else:
             accept_id = table.insert(**data)
             if not accept_id:
                 raise RuntimeError("Could not create record")
-            data[table._id.name] = accept_id
             onaccept = get_config(tablename, "create_onaccept",
                        get_config(tablename, "onaccept", None))
 
+        data[table._id.name] = accept_id
         prefix, name = tablename.split("_", 1)
-        form = Storage(vars=Storage(data))
+        form = Storage(vars=Storage(data), record=record)
 
         # Audit
         if record_id is None:
@@ -963,14 +963,15 @@ class S3SQLCustomForm(S3SQLForm):
         if accept_id:
             if record_id is None:
                 # Set record owner
+                auth = current.auth
                 auth.s3_set_record_owner(table, accept_id)
                 auth.s3_make_session_owner(table, accept_id)
             else:
                 # Update realm
                 update_realm = s3db.get_config(table, "update_realm")
                 if update_realm:
-                    auth.set_realm_entity(table, vars,
-                                          force_update=True)
+                    current.auth.set_realm_entity(table, Storage(data),
+                                                  force_update=True)
 
             # Store session vars
             component.lastid = str(accept_id)
@@ -1104,11 +1105,12 @@ class S3SQLField(S3SQLFormElement):
         # Import S3ResourceField only here, to avoid circular dependency
         from s3resource import S3ResourceField
 
+        rfield = S3ResourceField(resource, self.selector)
+
         subtables = Storage([(c.tablename, c.alias)
                              for c in resource.components.values()
                              if not c.multiple])
 
-        rfield = S3ResourceField(resource, self.selector)
         tname = rfield.tname
         if rfield.field is not None:
 
@@ -1244,9 +1246,12 @@ class S3SQLInlineComponent(S3SQLSubForm):
 
         # Check selector
         if selector not in resource.components:
-            raise SyntaxError("Undefined component: %s" % selector)
-        else:
-            component = resource.components[selector]
+            hook = current.s3db.get_component(resource.tablename, selector)
+            if hook:
+                resource._attach(selector, hook)
+            else:
+                raise SyntaxError("Undefined component: %s" % selector)
+        component = resource.components[selector]
 
         # Check permission
         permitted = component.permit("read", component.tablename)
@@ -1376,6 +1381,7 @@ class S3SQLInlineComponent(S3SQLSubForm):
 
             data = {"controller": c,
                     "function": f,
+                    "resource": resource.tablename,
                     "component": component_name,
                     "fields": headers,
                     "defaults": self._filterby_defaults(),
@@ -1551,7 +1557,6 @@ class S3SQLInlineComponent(S3SQLSubForm):
                         TBODY(item_rows),
                         TFOOT(action_rows),
                         _class="embeddedComponent",
-                        _style="border: 1px solid black;"
                      )
         else:
             widget = current.T("No entries currently available")
@@ -1613,7 +1618,8 @@ class S3SQLInlineComponent(S3SQLSubForm):
 
         return TABLE(THEAD(labels),
                      TBODY(trs),
-                     TFOOT())
+                     TFOOT(),
+                     _class="embeddedComponent")
 
     # -------------------------------------------------------------------------
     def accept(self, form, master_id=None, format=None):
@@ -1765,7 +1771,7 @@ class S3SQLInlineComponent(S3SQLSubForm):
             return "%s%s" % (self.alias, self.selector)
 
     # -------------------------------------------------------------------------
-    def _render_headers(self, data, extra_columns=2, **attributes):
+    def _render_headers(self, data, extra_columns=0, **attributes):
         """
             Render the header row with field labels
 
@@ -1776,6 +1782,7 @@ class S3SQLInlineComponent(S3SQLSubForm):
 
         fields = data["fields"]
         labels = [TD(LABEL(f["label"])) for f in fields]
+        # @ToDo: Is this required? Header Row doesn't have to be the same number of columns
         for i in range(extra_columns):
             labels.append(TD())
         return TR(labels, **attributes)

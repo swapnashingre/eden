@@ -1397,8 +1397,20 @@ class S3CRUD(S3Method):
         output = Storage()
         resource = self.resource
 
-        if "component" in r.get_vars:
-            alias = r.get_vars["component"]
+        vars = r.get_vars
+        if "component" in vars:
+            alias = vars["component"]
+        else:
+            alias = None
+        if "resource" in vars:
+            tablename = vars["resource"]
+            components = [alias] if alias else None
+            try:
+                resource = current.s3db.resource(tablename,
+                                                 components=components)
+            except:
+                r.error(404, current.manager.ERROR.BAD_RESOURCE)
+        if alias:
             if alias in resource.components:
                 component = resource.components[alias]
             else:
@@ -1493,7 +1505,8 @@ class S3CRUD(S3Method):
                     value, error = validate(table, original, fname, value)
                 except AttributeError:
                     error = "invalid field"
-                validated["value"] = value # field.formatter(value)?
+
+                validated["value"] = field.formatter(value)
 
                 # Handle errors, update the validated item
                 if error:
@@ -1998,13 +2011,9 @@ class S3CRUD(S3Method):
                         in the link table
         """
 
-        db = current.db
         s3db = current.s3db
-        auth = current.auth
         request = current.request
-        T = current.T
 
-        error_message = T("Could not create record.")
         get_config = lambda key, tablename=component: \
                             s3db.get_config(tablename, key, None)
 
@@ -2014,6 +2023,7 @@ class S3CRUD(S3Method):
             selected = None
 
         if request.env.request_method == "POST":
+            db = current.db
             table = db[component]
             _vars = request.post_vars
             _form = Storage(vars=Storage(table._filter_fields(_vars)),
@@ -2035,8 +2045,8 @@ class S3CRUD(S3Method):
                     # Update realm
                     update_realm = s3db.get_config(table, "update_realm")
                     if update_realm:
-                        auth.set_realm_entity(table, selected,
-                                              force_update=True)
+                        current.auth.set_realm_entity(table, selected,
+                                                      force_update=True)
                     # Onaccept
                     onaccept = get_config("update_onaccept") or \
                                get_config("onaccept")
@@ -2060,6 +2070,7 @@ class S3CRUD(S3Method):
                         # Update super-entity links
                         s3db.update_super(table, dict(id=selected))
                         # Set record owner
+                        auth = current.auth
                         auth.s3_set_record_owner(table, selected)
                         auth.s3_make_session_owner(table, selected)
                         # Onaccept
@@ -2067,7 +2078,7 @@ class S3CRUD(S3Method):
                                    get_config("onaccept")
                         callback(onaccept, _form, tablename=component)
                     else:
-                        form.errors[key] = error_message
+                        form.errors[key] = current.T("Could not create record.")
         return
 
     # -------------------------------------------------------------------------

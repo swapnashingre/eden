@@ -342,7 +342,29 @@ def person():
         if r.representation == "s3json":
             s3mgr.show_ids = True
         elif r.interactive and r.method != "import":
-            if r.component:
+            if not r.component:
+                table = r.table
+                table.pe_label.readable = False
+                table.pe_label.writable = False
+                table.missing.readable = False
+                table.missing.writable = False
+                table.age_group.readable = False
+                table.age_group.writable = False
+                # Assume volunteers only between 5-120
+                table.date_of_birth.widget = S3DateWidget(past=1440, future=-60)
+
+                person_details_table = s3db.pr_person_details
+                # No point showing the 'Occupation' field - that's the Job Title in the Staff Record
+                person_details_table.occupation.readable = False
+                person_details_table.occupation.writable = False
+
+                # Organisation Dependent Fields
+                set_org_dependent_field = settings.set_org_dependent_field
+                set_org_dependent_field("pr_person_details", "father_name")
+                set_org_dependent_field("pr_person_details", "mother_name")
+                set_org_dependent_field("pr_person_details", "affiliations")
+                set_org_dependent_field("pr_person_details", "company")
+            else:
                 if r.component_name == "human_resource":
                     table = r.component.table
                     table.site_id.writable = True
@@ -382,22 +404,6 @@ def person():
                               insertable = False,
                               editable = False,
                               deletable = False)
-            elif r.method == "contacts":
-                #s3.js_global.append('''controller="hrm"''')
-                pass
-            else:
-                table = r.table
-                # No point showing the 'Occupation' field - that's the Job Title in the Staff Record
-                table.occupation.readable = False
-                table.occupation.writable = False
-                table.pe_label.readable = False
-                table.pe_label.writable = False
-                table.missing.readable = False
-                table.missing.writable = False
-                table.age_group.readable = False
-                table.age_group.writable = False
-                # Assume volunteers only between 12-81
-                table.date_of_birth.widget = S3DateWidget(past=972, future=-144)
 
             resource = r.resource
             if mode is not None:
@@ -703,6 +709,8 @@ def department():
         return True
     s3.prep = prep
 
+    s3.filter = auth.filter_by_root_org(s3db.hrm_department)
+
     output = s3_rest_controller()
     return output
 
@@ -715,6 +723,8 @@ def job_role():
             r.error(403, message=auth.permission.INSUFFICIENT_PRIVILEGES)
         return True
     s3.prep = prep
+    
+    s3.filter = auth.filter_by_root_org(s3db.hrm_job_role)
 
     output = s3_rest_controller()
     return output
@@ -728,6 +738,8 @@ def job_title():
             r.error(403, message=auth.permission.INSUFFICIENT_PRIVILEGES)
         return True
     s3.prep = prep
+
+    s3.filter = auth.filter_by_root_org(s3db.hrm_job_title)
 
     output = s3_rest_controller()
     return output
@@ -790,6 +802,8 @@ def course():
     if mode is not None:
         session.error = T("Access denied")
         redirect(URL(f="index"))
+
+    s3.filter = auth.filter_by_root_org(s3db.hrm_job_title)
 
     output = s3_rest_controller(rheader=s3db.hrm_rheader)
     return output

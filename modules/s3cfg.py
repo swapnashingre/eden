@@ -83,12 +83,9 @@ class S3Config(Storage):
         """
             Execute the template
         """
-        #from gluon.compileapp import build_environment
         from gluon.fileutils import read_file
         from gluon.restricted import restricted
-        #environment = build_environment(request, response, session)
         code = read_file(path)
-        #restricted(code, environment, layer=path)
         restricted(code, layer=path)
         return
 
@@ -111,7 +108,7 @@ class S3Config(Storage):
     # Auth settings
     def get_auth_hmac_key(self):
         """
-            salt to encrypt passwords - normally randmosied during 1st run
+            salt to encrypt passwords - normally randomised during 1st run
         """
         return self.auth.get("hmac_key", "akeytochange")
 
@@ -228,12 +225,12 @@ class S3Config(Storage):
     def get_auth_realm_entity(self):
         """ Hook to determine the owner entity of a record """
         return self.auth.get("realm_entity", None)
-    def get_auth_person_realm_human_resource_site(self):
+    def get_auth_person_realm_human_resource_site_then_org(self):
         """
             Should we set pr_person.realm_entity to that of
             hrm_human_resource.site_id$pe_id
         """
-        return self.auth.get("person_realm_human_resource_site", False)
+        return self.auth.get("person_realm_human_resource_site_then_org", False)
     def get_auth_person_realm_member_org(self):
         """
             Sets pr_person.realm_entity to
@@ -510,6 +507,8 @@ class S3Config(Storage):
             - %f -- Degrees in decimal (double)
         """
         return self.L10n.get("lat_lon_display_format", "%f")
+    def get_L10n_languages_readonly(self):
+        return self.L10n.get("languages_readonly", True)
     def get_L10n_mandatory_lastname(self):
         return self.L10n.get("mandatory_lastname", False)
     def get_L10n_thousands_separator(self):
@@ -614,11 +613,20 @@ class S3Config(Storage):
         """
         return self.mail.get("tls", False)
     def get_mail_sender(self):
-        return self.mail.get("sender", "'Sahana' <sahana@example.org>")
+        """
+            The From Address for all Outbound Emails
+        """
+        return self.mail.get("sender", None)
     def get_mail_approver(self):
+        """
+            The default Address to send Requests for New Users to be Approved
+            - unless overridden by per-domain entries in auth_organsiation
+        """
         return self.mail.get("approver", "useradmin@example.org")
     def get_mail_limit(self):
-        """ A daily limit to the number of messages which can be sent """
+        """
+            A daily limit to the number of messages which can be sent
+        """
         return self.mail.get("limit", None)
 
     # -------------------------------------------------------------------------
@@ -759,7 +767,7 @@ class S3Config(Storage):
         """
             If set to True then HRM records are deletable rather than just being able to be marked as obsolete
         """
-        return self.hrm.get("deletable", False)
+        return self.hrm.get("deletable", True)
 
     def get_hrm_job_roles(self):
         """
@@ -953,6 +961,51 @@ class S3Config(Storage):
                 # National/International staff
         """
         return self.org.get("summary", False)
+
+    def set_org_dependent_field(self,
+                                tablename=None,
+                                fieldname=None,
+                                enable_field =True):
+        """
+            Enables/Disables optional fields according to a user's Organisation
+            - must specify either field or tablename/fieldname
+                                           (e.g. for virtual fields)
+        """
+
+        auth = current.auth
+        if auth.s3_has_role(auth.get_system_roles().ADMIN):
+            # Admins see all fields
+            enabled = True
+        else:
+            # Default to disabled
+            enabled = False
+
+        #elif not tablename or not fieldname:
+        #    raise SyntaxError
+
+        dependent_fields = self.org.get("dependent_fields", None)
+        if dependent_fields and not enabled:
+            org_name_list = dependent_fields.get("%s.%s" % (tablename,
+                                                            fieldname),
+                                                 None)
+
+            if org_name_list:
+                s3db = current.s3db
+                otable = s3db.org_organisation
+                root_org_id = auth.root_org()
+                root_org = current.db(otable.id == root_org_id).select(otable.name,
+                                                                       limitby=(0, 1),
+                                                                       cache=s3db.cache
+                                                                       ).first()
+                if root_org:
+                    enabled = root_org.name in org_name_list
+
+        if enable_field:
+            field = current.s3db[tablename][fieldname]
+            field.readable = enabled
+            field.writable = enabled
+
+        return enabled
 
     # -------------------------------------------------------------------------
     # Proc

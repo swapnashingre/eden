@@ -2373,22 +2373,22 @@ class S3ProjectActivityModel(S3Model):
 
         if row is None and id is not None:
             if isinstance(id, Row):
-                row = id
+                activity = id
             else:
-                row = db(atable.id == id).select(atable.name,
-                                                 atable.project_id,
-                                                 limitby=(0, 1)).first()
+                activity = db(atable.id == id).select(atable.name,
+                                                      atable.project_id,
+                                                      limitby=(0, 1)).first()
 
-        if row is None:
+        if activity is None:
             return current.messages.NONE
 
         # Fetch the project record
         ptable = s3db.project_project
-        project = db(ptable.id == row.project_id).select(ptable.code,
-                                                         limitby=(0, 1)).first()
+        project = db(ptable.id == activity.project_id).select(ptable.code,
+                                                              limitby=(0, 1)).first()
 
         if project and project.code:
-            return "%s - %s" % (project.code, activity.name)
+            return "%s > %s" % (project.code, activity.name)
         else:
             return activity.name
 
@@ -3027,7 +3027,7 @@ class S3ProjectTaskModel(S3Model):
                                                         zero=None),
                                    default = 3,
                                    label = T("Priority"),
-                                   represent = lambda opt, row=None: \
+                                   represent = lambda opt: \
                                                project_task_priority_opts.get(opt,
                                                                               UNKNOWN_OPT)),
                              # Could be a Person, Team or Organisation
@@ -3171,8 +3171,8 @@ class S3ProjectTaskModel(S3Model):
                     ),
                 ]
         list_fields=["id",
-                     "priority",
                      (T("ID"), "task_id"),
+                     "priority",
                      "name",
                      "pe_id",
                      "date_due",
@@ -3193,6 +3193,29 @@ class S3ProjectTaskModel(S3Model):
 
         task_search = S3Search(advanced = advanced_task_search)
 
+        # Custom Form
+        crud_form = s3forms.S3SQLCustomForm(
+                        "name",
+                        "description",
+                        "source",
+                        "priority",
+                        "pe_id",
+                        "date_due",
+                        "milestone_id",
+                        "time_estimated",
+                        "status",
+                        s3forms.S3SQLInlineComponent(
+                            "time",
+                            label = T("Time Log"),
+                            fields = ["date",
+                                      "person_id",
+                                      "hours",
+                                      "comments"
+                                      ]
+                        ),
+                        "time_actual",
+                    )
+
         # Resource Configuration
         configure(tablename,
                   super_entity="doc_entity",
@@ -3205,6 +3228,7 @@ class S3ProjectTaskModel(S3Model):
                   update_onaccept=self.task_update_onaccept,
                   search_method=task_search,
                   list_fields=list_fields,
+                  crud_form = crud_form,
                   extra="description")
 
         # Reusable field
@@ -3221,7 +3245,6 @@ class S3ProjectTaskModel(S3Model):
                                                               tooltip=T("A task is a piece of work that an individual or team can do in 1-2 days.")),
                                   ondelete = "CASCADE")
 
-        # ---------------------------------------------------------------------
         # Custom Methods
         self.set_method("project", "task",
                         method="dispatch",
@@ -3364,7 +3387,7 @@ class S3ProjectTaskModel(S3Model):
             title_update = T("Edit Logged Time"),
             title_search = T("Search Logged Time"),
             title_upload = T("Import Logged Time data"),
-            title_report = T("Last Week's Work"),
+            title_report = T("Project Time Report"),
             subtitle_create = T("Log New Time"),
             label_list_button = T("List Logged Time"),
             label_create_button = ADD_TIME,
@@ -4210,11 +4233,10 @@ def task_notify(form):
     """
 
     vars = form.vars
-    try:
-        pe_id = int(vars.pe_id)
-    except TypeError, ValueError:
+    pe_id = vars.pe_id
+    if not pe_id:
         return
-    if form.record is None or (pe_id != form.record.pe_id):
+    if form.record is None or (int(pe_id) != form.record.pe_id):
         # Assignee has changed
         settings = current.deployment_settings
         if settings.has_module("msg"):
@@ -4222,8 +4244,10 @@ def task_notify(form):
             subject = "%s: Task assigned to you" % settings.get_system_name_short()
             url = "%s%s" % (settings.get_base_public_url(),
                             URL(c="project", f="task", args=vars.id))
-            message = "You have been assigned a Task:\n\n%s\n\n%s\n\n%s" % \
+            priority = current.s3db.project_task.priority.represent(int(vars.priority))
+            message = "You have been assigned a Task:\n\n%s\n\n%s\n\n%s\n\n%s" % \
                 (url,
+                 "%s priority" % priority,
                  vars.name,
                  vars.description or "")
             current.msg.send_by_pe_id(pe_id, subject, message)
@@ -4319,95 +4343,6 @@ class S3ProjectLocationVirtualFields:
         else:
             return None
 
-    # def L0(self):
-        # parents = Storage()
-        # try:
-            # parents = current.gis.get_parent_per_level(parents,
-                                                       # self.project_location.location_id,
-                                                       # ids=False,
-                                                       # names=True)
-        # except AttributeError:
-            # pass
-
-        # if "L0" in parents:
-            # return parents["L0"]
-        # else:
-            # return None
-
-    # def L1(self):
-        # parents = Storage()
-        # try:
-            # parents = current.gis.get_parent_per_level(parents,
-                                                       # self.project_location.location_id,
-                                                       # ids=False,
-                                                       # names=True)
-        # except AttributeError:
-            # pass
-
-        # if "L1" in parents:
-            # return parents["L1"]
-        # else:
-            # return None
-
-    # def L2(self):
-        # parents = Storage()
-        # try:
-            # parents = current.gis.get_parent_per_level(parents,
-                                                       # self.project_location.location_id,
-                                                       # ids=False,
-                                                       # names=True)
-        # except AttributeError:
-            # pass
-
-        # if "L2" in parents:
-            # return parents["L2"]
-        # else:
-            # return None
-
-    # def L3(self):
-        # parents = Storage()
-        # try:
-            # parents = current.gis.get_parent_per_level(parents,
-                                                       # self.project_location.location_id,
-                                                       # ids=False,
-                                                       # names=True)
-        # except AttributeError:
-            # pass
-
-        # if "L3" in parents:
-            # return parents["L3"]
-        # else:
-            # return None
-
-    # -------------------------------------------------------------------------
-    # def themes(self):
-        # """ Themes of the project """
-
-        # s3db = current.s3db
-        # ttable = s3db.project_theme
-        # themes = None
-        # if current.deployment_settings.get_project_theme_percentages():
-            # tptable = s3db.project_theme_percentage
-            # query = (tptable.project_id == self.project_location.project_id) & \
-                    # (ttable.id == tptable.theme_id)
-            # themes = current.db(query).select(ttable.name)
-        # else:
-            # db = current.db
-            # # 1st pull-back the themes
-            # ptable = s3db.project_project
-            # query = (ptable.id == self.project_location.project_id)
-            # project = db(query).select(ptable.multi_theme_id,
-                                       # limitby=(0, 1)).first()
-            # if project and project.multi_theme_id:
-                # theme_ids = [theme_id for theme_id in project.multi_theme_id]
-                # query = (ttable.id.belongs(theme_ids))
-                # themes = db(query).select(ttable.name)
-
-        # if themes:
-            # return [theme.name for theme in themes]
-        # else:
-            # return None
-
     # -------------------------------------------------------------------------
     def name(self):
         """
@@ -4441,107 +4376,8 @@ class S3ProjectBeneficiaryVirtualFields:
     """ Virtual fields for the project_beneficiary table """
 
     extra_fields = ["project_id",
-                    #"location_id",
                     "date",
                     "end_date"]
-
-    # -------------------------------------------------------------------------
-    # def L0(self):
-        # try:
-            # id = self.project_beneficiary.location_id
-        # except:
-             # return current.messages.NONE
-        # else:
-            # db = current.db
-            # table = db.gis_location
-            # query = (table.id == id)
-            ##Get all the fields as we'll cache these for the other VFs
-            # r = db(query).select(table.L0,
-                                 # table.L1,
-                                 # table.L2,
-                                 # table.L3,
-                                 # cache=current.s3db.cache,
-                                 # limitby=(0, 1)).first()
-            # try:
-                # return r.L0
-            # except:
-                # return current.messages.UNKNOWN_OPT
-
-
-
-
-
-
-
-
-
-
-
-    # -------------------------------------------------------------------------
-    # def L1(self):
-        # try:
-            # id = self.project_beneficiary.location_id
-        # except:
-             # return current.messages.NONE
-        # else:
-            # db = current.db
-            # table = db.gis_location
-            # query = (table.id == id)
-            ##Get all the fields as we'll cache these for the other VFs
-            # r = db(query).select(table.L0,
-                                 # table.L1,
-                                 # table.L2,
-                                 # table.L3,
-                                 # cache=current.s3db.cache,
-                                 # limitby=(0, 1)).first()
-            # try:
-                # return r.L1
-            # except:
-                # return current.messages.UNKNOWN_OPT
-
-    # -------------------------------------------------------------------------
-    # def L2(self):
-        # try:
-            # id = self.project_beneficiary.location_id
-        # except:
-             # return current.messages.NONE
-        # else:
-            # db = current.db
-            # table = db.gis_location
-            # query = (table.id == id)
-            ##Get all the fields as we'll cache these for the other VFs
-            # r = db(query).select(table.L0,
-                                 # table.L1,
-                                 # table.L2,
-                                 # table.L3,
-                                 # cache=current.s3db.cache,
-                                 # limitby=(0, 1)).first()
-            # try:
-                # return r.L2
-            # except:
-                # return current.messages.UNKNOWN_OPT
-
-    # -------------------------------------------------------------------------
-    # def L3(self):
-        # try:
-            # id = self.project_beneficiary.location_id
-        # except:
-             # return current.messages.NONE
-        # else:
-            # db = current.db
-            # table = db.gis_location
-            # query = (table.id == id)
-            ##Get all the fields as we'll cache these for the other VFs
-            # r = db(query).select(table.L0,
-                                 # table.L1,
-                                 # table.L2,
-                                 # table.L3,
-                                 # cache=current.s3db.cache,
-                                 # limitby=(0, 1)).first()
-            # try:
-                # return r.L3
-            # except:
-                # return current.messages.UNKNOWN_OPT
 
     # -------------------------------------------------------------------------
     def year(self):
@@ -4707,7 +4543,7 @@ class S3ProjectTaskVirtualFields:
 class S3ProjectTimeVirtualFields:
     """ Virtual fields for the project_time table """
 
-    extra_fields = ["task_id", "person_id", "date"]
+    extra_fields = ["task_id", "date"]
 
     # -------------------------------------------------------------------------
     def project(self):
@@ -4938,9 +4774,6 @@ def project_rheader(r, tabs=[]):
         # Tabs
         tabs = [(T("Details"), None)]
         append = tabs.append
-        staff = auth.s3_has_role("STAFF")
-        if staff:
-            append((T("Time"), "time")),
         append((T("Attachments"), "document"))
         if settings.has_module("msg"):
             append((T("Notify"), "dispatch"))
@@ -5149,8 +4982,8 @@ def project_task_controller():
             crud_strings.title_search = T("All Tasks")
             list_fields = s3db.get_config(tablename,
                                           "list_fields")
-            list_fields.insert(2, (T("Project"), "project"))
-            list_fields.insert(3, (T("Activity"), "activity"))
+            list_fields.insert(3, (T("Project"), "project"))
+            list_fields.insert(4, (T("Activity"), "activity"))
             s3db.configure(tablename,
                            report_options=Storage(
                                 search=[
