@@ -196,9 +196,10 @@ def twitter_search_results():
 
         @ToDo: Action Button to update async
     """
-    print "Welcome to Twitter search"
+    
     
     def prep(r):
+        print "Welcome to Twitter search"
         if r.interactive:
             table = r.table
             if not db(table.id > 0).select(table.id,

@@ -308,7 +308,7 @@ function LoadDynamicFeedControl(){
  ]
  var options={
   feedCycleTime:300000,
-  numResults:5,
+  numResults:10,
   stacked:true,
   horizontal:false,
   title:"''', str(T("News")), '''"

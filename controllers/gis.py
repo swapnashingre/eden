@@ -3,6 +3,7 @@
 """
     GIS Controllers
 """
+from gluon import current, redirect
 
 module = request.controller
 resourcename = request.function
@@ -494,43 +495,6 @@ NO_TYPE_LAYERS_FMT = "No %s Layers currently defined"
 def catalog():
     """ Custom View to link to different Layers """
     return dict()
-
-
-def layer_socialMedia():
-    """ RESTful CRUD controller """
-
-    tablename = "%s_%s" % (module, resourcename)
-    s3db.table(tablename)
-    
-    # Get the Twitter feeds from Twitter account
-    
-    print "Welcome to Social Media controller!!"
-    s3.addSocialMediaLayer()
-    results_table = s3db.msg.twitter_search_results
-
-
-    print "Result: " + results_table
-    # Pre-processor
-    def prep(r):
-        # Location Filter
-        s3db.gis_location_filter(r)
-
-        if r.interactive:
-            if r.component:
-                # remove CRUD generated buttons in the tabs
-                s3db.configure("inv_inv_item",
-                               create=False,
-                               listadd=False,
-                               editable=False,
-                               deletable=False,
-                               )
-            elif r.method == "update":
-                field = r.table.obsolete
-                field.readable = field.writable = True
-        return True
-    s3.prep = prep
-
-    return s3_rest_controller(rheader=s3db.gis_rheader)
 
 # -----------------------------------------------------------------------------
 def config():
@@ -3050,3 +3014,84 @@ def proxy():
         raise(HTTP(500, "Some unexpected error occurred. Error text was: %s" % str(E)))
 
 # END =========================================================================
+# -----------------------------------------------------------------------------
+def twitter_search_results():
+    """
+        Controller to view tweets from user saved search queries
+
+        @ToDo: Action Button to update async
+    """
+    
+    
+    def prep(r):
+        print "Welcome to Twitter search"
+        #if r.interactive:
+        table = r.table
+        if not db(table.id > 0).select(table.id,
+                                       limitby=(0, 1)).first():
+                # Update results
+            result = msg.receive_subscribed_tweets()
+            if not result:
+                session.error = T("Need to configure Twitter Authentication")
+                redirect(URL(f="twitter_settings", args=[1, "update"]))
+            return True
+    s3.prep = prep
+
+    s3db.configure("msg_twitter_search_results",
+                   insertable=False,
+                   editable=False)
+    return s3_rest_controller()
+#-------------------------------------------------------------------------------------------------------
+def layer_socialMedia():
+    """ RESTful CRUD controller """
+
+#    tablename = "%s_%s" % (module, resourcename)
+
+#    
+    # Get the Twitter feeds from Twitter account
+    
+    print "Welcome to Social Media controller!!"
+    #s3.addSocialMediaLayer()
+    
+    db = current.db
+    s3db = current.s3db
+    tablename = "gis_layer_feature"
+    s3db.table(tablename)    
+        
+    results_table = twitter_search_results()
+    # Fetch row by row and pass twitter feed to filter.  
+
+#    print "Result: " + results_table
+
+    rows = db(results_table.id > 0).select()
+                              
+    
+    for row in rows:
+        print row.id
+                      
+
+    
+    # Pre-processor
+    def prep(r):
+        # Location Filter
+        s3db.gis_location_filter(r)
+
+        if r.interactive:
+            if r.component:
+                # remove CRUD generated buttons in the tabs
+                s3db.configure("inv_inv_item",
+                               create=False,
+                               listadd=False,
+                               editable=False,
+                               deletable=False,
+                               )
+            elif r.method == "update":
+                field = r.table.obsolete
+                field.readable = field.writable = True
+        return True
+    s3.prep = prep
+
+    return s3_rest_controller(rheader=s3db.gis_rheader)
+
+
+
