@@ -53,6 +53,7 @@ def index():
 def airport():
     """ RESTful CRUD controller """
 
+    print "Welcome to Airport!"
     # Pre-processor
     def prep(r):
         # Location Filter

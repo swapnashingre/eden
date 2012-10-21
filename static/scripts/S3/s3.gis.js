@@ -333,21 +333,6 @@ function addLayerTree() {
         expanded: true
     };
 
-    var layerTreeSocialMedia = {
-            text: S3.i18n.gis_socialMedia,
-            nodeType: 'gx_socialMedialayercontainer',
-            layerStore: S3.gis.mapPanel.layers,
-            loader: {
-                filter: function(record) {
-                    var layer = record.getLayer();
-                    return layer.displayInLayerSwitcher === true &&
-                           layer.isBaseLayer === false &&
-                           (layer.dir === undefined || layer.dir == '');
-                }
-            },
-            leaf: false,
-            expanded: true
-    };
     // Default Folder for Overlays
     var layerTreeOverlays = {
         text: S3.i18n.gis_overlays,
@@ -365,7 +350,7 @@ function addLayerTree() {
         expanded: true
     };
 
-    var nodesArr = [ layerTreeBase, layerTreeSocialMedia, layerTreeOverlays ];
+    var nodesArr = [ layerTreeBase, layerTreeOverlays ];
 
     // User-specified Folders
     var dirs = S3.gis.dirs;

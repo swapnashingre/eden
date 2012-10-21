@@ -16,11 +16,11 @@ function addLayers() {
             addOSMLayer(S3.gis.layers_osm[i - 1]);
         }
     }
-    if (S3.gis.layer_socialMedia) {
-        for (i = S3.gis.layer_socialMedia.length; i > 0; i--) {
-            addSocialMediaLayer(S3.gis.layer_socialMedia[i - 1]);
-        }
-    }
+//    if (S3.gis.layer_socialMedia) {
+//        for (i = S3.gis.layer_socialMedia.length; i > 0; i--) {
+//            addSocialMediaLayer(S3.gis.layer_socialMedia[i - 1]);
+//        }
+//    }
     // Google
     try {
         // Only load Google layers if GoogleAPI downloaded ok
@@ -1318,13 +1318,13 @@ function osm_getTileURL(bounds) {
     }
 }
 
-function addSocialMediaLayers() {
-    var layer = S3.gis.gis_layer_socialMedia; 
-	map.addLayer(layer);
-	// Ensure Highlight & Popup Controls act on this layer
-	S3.gis.layers_all.push(layer);
-
-}
+//function addSocialMediaLayers() {
+//    var layer = S3.gis.gis_layer_socialMedia; 
+//	map.addLayer(layer);
+//	// Ensure Highlight & Popup Controls act on this layer
+//	S3.gis.layers_all.push(layer);
+//
+//}
 // OpenWeatherMap
 function addOWMLayers() {
     var owm = S3.gis.OWM;
@@ -1677,6 +1677,20 @@ function addWFSLayer(layer) {
     S3.gis.layers_all.push(wfsLayer);
 }
 
+function addSocialMediaLayer() {
+	
+	var markersLayer = new OpenLayers.Layer.Markers("My Marker Layer");
+    var iconSize =  new OpenLayers.Size(20,20);
+    var iconOffset = new OpenLayers.Pixel(-(iconSize.w/2), -iconSize.h);
+    var marker = new OpenLayers.Marker(
+    new OpenLayers.LonLat(29,30),
+    new OpenLayers.Icon("http://www.illinoisworknet.com/NR/rdonlyres/DEB25278-9771-4D72-9F41-1CDCF764D653/0/FindLocation_icon.gif",iconSize,iconOffset)
+    );
+    markersLayer.setVisibility(true);
+    markersLayer.addMarker(marker);
+    map.addLayer(markersLayer);
+
+}
 // WMS
 function addWMSLayer(layer) {
     var name = layer.name;

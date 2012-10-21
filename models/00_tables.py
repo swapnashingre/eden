@@ -53,7 +53,7 @@ import eden.transport
 import eden.vehicle
 import eden.vol
 import eden.vulnerability
-import eden.socialMedia
+#import eden.socialMedia
 
 # =============================================================================
 # Make available for S3Models

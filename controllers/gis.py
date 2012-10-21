@@ -501,61 +501,36 @@ def layer_socialMedia():
 
     tablename = "%s_%s" % (module, resourcename)
     s3db.table(tablename)
+    
+    # Get the Twitter feeds from Twitter account
+    
     print "Welcome to Social Media controller!!"
-    # CRUD Strings
-    type = "socialMedia"
-    LIST_LAYERS = T(LIST_TYPE_LAYERS_FMT % type)
-    EDIT_LAYER = T(EDIT_TYPE_LAYER_FMT % type)
-    NO_LAYERS = T(NO_TYPE_LAYERS_FMT % type)
-    s3.crud_strings[tablename] = Storage(
-        title_create=ADD_LAYER,
-        title_display=LAYER_DETAILS,
-        title_list=LAYERS,
-        title_update=EDIT_LAYER,
-        title_search=SEARCH_LAYERS,
-        subtitle_create=ADD_NEW_LAYER,
-        label_list_button=LIST_LAYERS,
-        label_create_button=ADD_LAYER,
-        label_delete_button = DELETE_LAYER,
-        msg_record_created=LAYER_ADDED,
-        msg_record_modified=LAYER_UPDATED,
-        msg_record_deleted=LAYER_DELETED,
-        msg_list_empty=NO_LAYERS)
+    s3.addSocialMediaLayer()
+    results_table = s3db.msg.twitter_search_results
 
+
+    print "Result: " + results_table
     # Pre-processor
     def prep(r):
-        if r.interactive:
-            if r.component_name == "config":
-                ltable = s3db.gis_layer_config
-                if r.method != "update":
-                    # Only show Configs with no definition yet for this layer
-                    table = r.table
-                    # Find the records which are used
-                    query = (ltable.layer_id == table.layer_id) & \
-                            (table.id == r.id)
-                    rows = db(query).select(ltable.config_id)
-                    # Filter them out
-                    ltable.config_id.requires = IS_ONE_OF(db, "gis_config.id",
-                                                         "%(name)s",
-                                                         not_filterby="config_id",
-                                                         not_filter_opts=[row.config_id for row in rows]
-                                                         )
+        # Location Filter
+        s3db.gis_location_filter(r)
 
+        if r.interactive:
+            if r.component:
+                # remove CRUD generated buttons in the tabs
+                s3db.configure("inv_inv_item",
+                               create=False,
+                               listadd=False,
+                               editable=False,
+                               deletable=False,
+                               )
+            elif r.method == "update":
+                field = r.table.obsolete
+                field.readable = field.writable = True
         return True
     s3.prep = prep
 
-    # Post-processor
-    def postp(r, output):
-        if r.interactive and r.method != "import":
-            if not r.component:
-                # Inject checkbox to enable layer in default config
-                inject_enable(output)
-        return output
-    s3.postp = postp
-
-    output = s3_rest_controller(rheader=s3db.gis_rheader)
-
-    return output
+    return s3_rest_controller(rheader=s3db.gis_rheader)
 
 # -----------------------------------------------------------------------------
 def config():
@@ -1425,6 +1400,7 @@ def layer_geojson():
     tablename = "%s_%s" % (module, resourcename)
     s3db.table(tablename)
 
+    print "In layer_goejson"
     # CRUD Strings
     type = "GeoJSON"
     LAYERS = T(TYPE_LAYERS_FMT % type)

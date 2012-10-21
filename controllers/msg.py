@@ -196,7 +196,8 @@ def twitter_search_results():
 
         @ToDo: Action Button to update async
     """
-
+    print "Welcome to Twitter search"
+    
     def prep(r):
         if r.interactive:
             table = r.table

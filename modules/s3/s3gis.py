@@ -5673,7 +5673,7 @@ S3.gis.layers_feature_resources[%i]={
                 OpenWeatherMapLayer,
                 WFSLayer,
                 FeatureLayer,
-                socialMedia
+                #socialMedia
             ]
         else:
             # Add just the default Base Layer
@@ -5706,8 +5706,8 @@ S3.gis.layers_feature_resources[%i]={
                     layer_types = [XYZLayer]
                 elif layer_type == "gis_layer_empty":
                     layer_types = [EmptyLayer]
-                elif layer_type == "gis_layer_socialMedia":
-                    layer_types = [socialMedia]
+#                elif layer_type == "gis_layer_socialMedia":
+#                    layer_types = [socialMedia]
             if not layer_types:
                 layer_types = [EmptyLayer]
 
@@ -5798,7 +5798,7 @@ S3.i18n.gis_feature_info="%s"
             layer_properties,           # Presence of label turns feature on
             '''S3.i18n.gis_requires_login='%s'\n''' % T("Requires Login"),
             '''S3.i18n.gis_base_layers='%s'\n''' % T("Base Layers"),
-            '''S3.i18n.gis_socialMedia='%s'\n''' % T("Social Media"),
+            #'''S3.i18n.gis_socialMedia='%s'\n''' % T("Social Media"),
             '''S3.i18n.gis_overlays='%s'\n''' % T("Overlays"),
             '''S3.i18n.gis_layers='%s'\n''' % T("Layers"),
             '''S3.i18n.gis_draft_layer='%s'\n''' % T("Draft Features"),
@@ -6269,38 +6269,38 @@ class EmptyLayer(Layer):
         else:
             return None
 
-class socialMedia(Layer):
-    """
-        SocialMedia Layer
-    """
-
-    tablename = "gis_layer_socialMedia"
-
-    def __init__(self):
-        super(socialMedia, self).__init__()
- 
-    # -------------------------------------------------------------------------
-    def as_javascript(self):
-        """
-            Output the Layer as Javascript
-            - suitable for inclusion in the HTML page
-        """
-
-        sublayers = self.sublayers
-        if sublayers:
-            sublayer = sublayers[0]
-            name = str(current.T(sublayer.name))
-            name_safe = re.sub("'", "", name)
-            if sublayer._base:
-                base = ",base:true"
-            else:
-                base = ""
-            output = '''S3.gis.socialMedia={name:'%s',id:%s%s}\n''' % \
-                (name_safe, sublayer.layer_id, base)
-            return output
-        else:
-            return None
-   
+#class socialMedia(Layer):
+#    """
+#        SocialMedia Layer
+#    """
+#
+#    tablename = "gis_layer_socialMedia"
+#
+#    def __init__(self):
+#        super(socialMedia, self).__init__()
+# 
+#    # -------------------------------------------------------------------------
+#    def as_javascript(self):
+#        """
+#            Output the Layer as Javascript
+#            - suitable for inclusion in the HTML page
+#        """
+#
+#        sublayers = self.sublayers
+#        if sublayers:
+#            sublayer = sublayers[0]
+#            name = str(current.T(sublayer.name))
+#            name_safe = re.sub("'", "", name)
+#            if sublayer._base:
+#                base = ",base:true"
+#            else:
+#                base = ""
+#            output = '''S3.gis.socialMedia={name:'%s',id:%s%s}\n''' % \
+#                (name_safe, sublayer.layer_id, base)
+#            return output
+#        else:
+#            return None
+#   
 # -----------------------------------------------------------------------------
 class FeatureLayer(Layer):
     """

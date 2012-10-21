@@ -120,7 +120,6 @@ def index():
                 ["facility", T("Offices"), "org", "office"],
                 ["facility", SHELTERS, "cr", "shelter"],
                 ["facility", T("Warehouses"), "inv", "warehouse"],
-                
                 ["sit", T("Staff"), "hrm", "staff"],
                 ["sit", T("Volunteers"), "vol", "volunteer"],
                 ["sit", T("Incidents"), "irs", "ireport"],
@@ -131,7 +130,6 @@ def index():
                 #["dec", T("Gap Report"), "project", "gap_report"],
                 ["dec", T("Requests"), "req", "req"],
                 ["res", T("Projects"), "project", "project"],
-                ["res", T("Social Media"), "socmed", "socialmedia"],
                 ["res", T("Commitments"), "req", "commit"],
                 ["res", T("Sent Shipments"), "inv", "send"],
                 ["res", T("Received Shipments"), "inv", "recv"]
